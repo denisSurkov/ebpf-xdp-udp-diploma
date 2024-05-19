@@ -16,7 +16,7 @@ def print_skb_event(cpu, data, size):
 
             ("daddr", ct.c_uint32),
             ("dport", ct.c_uint16),
-            ("raw", ct.c_ubyte * (size - (ct.sizeof(ct.c_uint32) * 2 + ct.sizeof(ct.c_uint16) * 2)))
+            ("raw", ct.c_ubyte * (size - ct.sizeof(ct.c_uint32))),
         ]
 
     print(size)
@@ -27,7 +27,7 @@ def print_skb_event(cpu, data, size):
     src = socket.inet_ntoa(bytes_src)
     dst = socket.inet_ntoa(bytes_dst)
     print("%-32s %-16s %-32s %-16s %d" % (src, skb_event.sport, dst, skb_event.dport, len(skb_event.raw)))
-    print(bytearray(skb_event.raw[-32:]).decode('ascii'))
+    print(bytearray(skb_event.raw[14+20+8 + 2:]).decode('utf8'))
 
 
 ipr = pyroute2.IPRoute()

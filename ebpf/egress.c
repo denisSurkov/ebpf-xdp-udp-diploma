@@ -6,8 +6,6 @@
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 
-#define UDP_PROTOCOL 17
-
 BPF_PERF_OUTPUT(skb_events);
 
 struct udp_event {
@@ -39,7 +37,7 @@ int handle_egress(struct __sk_buff *skb) {
         return TC_ACT_OK;
     }
 
-    if (ip->protocol != UDP_PROTOCOL) {
+    if (ip->protocol != IPPROTO_UDP) {
         return TC_ACT_OK;
     }
     struct udp_event event = {};
@@ -47,6 +45,9 @@ int handle_egress(struct __sk_buff *skb) {
     event.daddr = bpf_htonl(ip->daddr);
     event.sport = bpf_htons(udp->source);
     event.dport = bpf_htons(udp->dest);
+
+
+    // TODO: !!! need to check if sport in duplication port
 
     skb_events.perf_submit_skb(skb, skb->len, &event, sizeof(event));
 
