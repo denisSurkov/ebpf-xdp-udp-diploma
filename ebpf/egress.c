@@ -14,6 +14,8 @@ struct udp_event {
 
     u32 daddr;
     u16 dport;
+
+    u16 length;
 };
 
 struct eth_hdr {
@@ -45,7 +47,7 @@ int handle_egress(struct __sk_buff *skb) {
     event.daddr = bpf_htonl(ip->daddr);
     event.sport = bpf_htons(udp->source);
     event.dport = bpf_htons(udp->dest);
-
+    event.length = bpf_htons(udp->len);
 
     // TODO: !!! need to check if sport in duplication port
 
