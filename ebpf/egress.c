@@ -18,11 +18,6 @@ struct udp_event {
     u16 length;
 };
 
-struct eth_hdr {
-    unsigned char h_dest[ETH_ALEN];
-    unsigned char h_source[ETH_ALEN];
-    unsigned short h_proto;
-};
 
 int handle_egress(struct __sk_buff *skb) {
     void *data = (void *) (long) skb->data;
@@ -49,9 +44,10 @@ int handle_egress(struct __sk_buff *skb) {
     event.dport = bpf_htons(udp->dest);
     event.length = bpf_htons(udp->len);
 
-    // TODO: !!! need to check if sport in duplication port
-
-    skb_events.perf_submit_skb(skb, skb->len, &event, sizeof(event));
+    if (event.sport == 5555) {
+        skb_events.perf_submit_skb(skb, skb->len, &event, sizeof(event));
+        return TC_ACT_SHOT;
+    }
 
     return TC_ACT_OK;
 }
