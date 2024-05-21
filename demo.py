@@ -1,9 +1,6 @@
-from itertools import repeat
-
 from bcc import BPF
 import ctypes as ct
 import pyroute2
-import hashlib
 
 import socket, struct
 
@@ -29,21 +26,20 @@ def print_skb_event(cpu, data, size):
 
             ("daddr", ct.c_uint32),
             ("dport", ct.c_uint16),
+
             ("length", ct.c_uint16),
             ("raw", ct.c_ubyte * size),
         ]
 
-    print(size)
     skb_event = ct.cast(data, ct.POINTER(SkbEvent)).contents
     bytes_src = struct.pack('!L', skb_event.saddr)
     bytes_dst = struct.pack('!L', skb_event.daddr)
 
     src = socket.inet_ntoa(bytes_src)
     dst = socket.inet_ntoa(bytes_dst)
+
     print("%-32s %-16s %-32s %-16s %d" % (src, skb_event.sport, dst, skb_event.dport, len(skb_event.raw)))
-    with open('foo.hex', 'wb') as f:
-        f.write(bytearray(skb_event.raw[SKB_BUFFER_PADDING + ETHERNET_HEADER_BYTES + IP_HEADER_BYTES + UDP_HEADER_BYTES:]))
-    exit(0)
+    print(bytearray(skb_event.raw[SKB_BUFFER_PADDING + ETHERNET_HEADER_BYTES + IP_HEADER_BYTES + UDP_HEADER_BYTES:][:skb_event.length]).decode('utf8'))
 
 
 ipr = pyroute2.IPRoute()
@@ -73,7 +69,6 @@ ipr.tc(
 )
 
 b["tracking_ports"].clear()
-
 value = ct.c_int(1)
 for port in PORTS_TO_TRACK:
     key = ct.c_int(port)
@@ -85,4 +80,4 @@ try:
     while True:
         b.perf_buffer_poll()
 except KeyboardInterrupt:
-    pass
+    ...
