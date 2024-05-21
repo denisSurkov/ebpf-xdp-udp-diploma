@@ -1,3 +1,5 @@
+import hashlib
+
 from bcc import BPF
 import ctypes as ct
 import pyroute2
@@ -5,6 +7,8 @@ import pyroute2
 import socket, struct
 
 from pyroute2 import NetlinkError
+
+FLAG_BYTES = bytearray(b'1CAFE1')
 
 EGRESS_PARENT = 0xFFFFFFF3
 SKB_BUFFER_PADDING = 8
@@ -38,8 +42,22 @@ def print_skb_event(cpu, data, size):
     src = socket.inet_ntoa(bytes_src)
     dst = socket.inet_ntoa(bytes_dst)
 
+    body_bytearray = bytearray(skb_event.raw[SKB_BUFFER_PADDING + ETHERNET_HEADER_BYTES + IP_HEADER_BYTES + UDP_HEADER_BYTES:][:skb_event.length])
+
     print("%-32s %-16s %-32s %-16s %d" % (src, skb_event.sport, dst, skb_event.dport, len(skb_event.raw)))
-    print(bytearray(skb_event.raw[SKB_BUFFER_PADDING + ETHERNET_HEADER_BYTES + IP_HEADER_BYTES + UDP_HEADER_BYTES:][:skb_event.length]).decode('utf8'))
+    print(body_bytearray.decode('utf8'))
+
+    hash_bytearray = bytearray(hashlib.sha256(body_bytearray).digest())
+    print(hash_bytearray)
+
+    body_and_hash = body_bytearray.copy()
+    body_and_hash.extend(FLAG_BYTES)
+    body_and_hash.extend(hash_bytearray)
+    body_and_hash.extend(FLAG_BYTES)
+
+    print(body_and_hash)
+
+    # TODO: use scapy to send raw package :)
 
 
 ipr = pyroute2.IPRoute()
