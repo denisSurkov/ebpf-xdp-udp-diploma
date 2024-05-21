@@ -8,6 +8,8 @@
 
 BPF_PERF_OUTPUT(skb_events);
 
+BPF_HASH(tracking_ports, u16, u8);
+
 struct udp_event {
     u32 saddr;
     u16 sport;
@@ -44,10 +46,10 @@ int handle_egress(struct __sk_buff *skb) {
     event.dport = bpf_htons(udp->dest);
     event.length = bpf_htons(udp->len);
 
-    if (event.sport == 5555) {
-        skb_events.perf_submit_skb(skb, skb->len, &event, sizeof(event));
-        return TC_ACT_SHOT;
+    if (tracking_ports.lookup(&event.dport) == NULL) {
+        return TC_ACT_OK;
     }
 
-    return TC_ACT_OK;
+    skb_events.perf_submit_skb(skb, skb->len, &event, sizeof(event));
+    return TC_ACT_SHOT;
 }

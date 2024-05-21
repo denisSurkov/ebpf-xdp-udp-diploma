@@ -1,3 +1,5 @@
+from itertools import repeat
+
 from bcc import BPF
 import ctypes as ct
 import pyroute2
@@ -12,6 +14,11 @@ SKB_BUFFER_PADDING = 8
 ETHERNET_HEADER_BYTES = 6 + 6 + 2
 IP_HEADER_BYTES = 4 + 4 + 4
 UDP_HEADER_BYTES = 4 + 4
+
+PORTS_TO_TRACK = [
+    5000,
+    8000,
+]
 
 
 def print_skb_event(cpu, data, size):
@@ -44,17 +51,6 @@ b = BPF(src_file="ebpf/egress.c")
 fn = b.load_func("handle_egress", BPF.SCHED_CLS)
 ethernet = ipr.link_lookup(ifname="eno1")[0]
 
-filter_payload = {
-    'kind': 'bpf',
-    'index': ethernet,
-    'classid': 1,
-    'fd': fn.fd,
-    'name': fn.name,
-    'parent': EGRESS_PARENT,
-    'direct_action': True,
-    'handle': '0:1',
-}
-
 try:
     ipr.tc(
             "add",
@@ -75,6 +71,13 @@ ipr.tc(
         classid=1,
         direct_action=True,
 )
+
+b["tracking_ports"].clear()
+
+value = ct.c_int(1)
+for port in PORTS_TO_TRACK:
+    key = ct.c_int(port)
+    b["tracking_ports"][key] = value
 
 b["skb_events"].open_perf_buffer(print_skb_event)
 print("%-32s %-16s %-32s %-16s payload-length" % ("SRC IP", "SRC PORT", "DST IP", "DST PORT"))
