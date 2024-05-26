@@ -18,12 +18,15 @@ struct udp_event {
     u16 dport;
 
     u16 length;
+    u32 marker;
 };
+
 
 
 int handle_egress(struct __sk_buff *skb) {
     void *data = (void *) (long) skb->data;
     void *data_end = (void *) (long) skb->data_end;
+    u32 marker;
     struct ethhdr *eth = data;
     struct iphdr *ip = (data + sizeof(struct ethhdr));
     struct udphdr *udp = (data + sizeof(struct ethhdr) + sizeof(struct iphdr));
@@ -50,6 +53,27 @@ int handle_egress(struct __sk_buff *skb) {
         return TC_ACT_OK;
     }
 
-    skb_events.perf_submit_skb(skb, skb->len, &event, sizeof(event));
-    return TC_ACT_SHOT;
+    int ret = bpf_skb_load_bytes(
+            skb,
+            sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr),
+            &marker,
+            sizeof(marker)
+    );
+
+    event.marker = marker;
+
+    if (ret != 0) {
+        return TC_ACT_OK;
+    }
+
+	skb_events.perf_submit_skb(skb, skb->len, &event, sizeof(event));
+
+    return TC_ACT_OK;
+//
+//    if (marker == 0xCAFE) {
+//        return TC_ACT_OK;
+//    }
+//
+//    skb_events.perf_submit_skb(skb, skb->len, &event, sizeof(event));
+//    return TC_ACT_SHOT;
 }

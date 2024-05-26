@@ -4,14 +4,18 @@ from bcc import BPF
 import ctypes as ct
 import pyroute2
 
-import socket, struct
+import socket
+import struct
+
+from scapy.all import *
 
 from pyroute2 import NetlinkError
+from scapy.layers.inet import IP, UDP
 
-FLAG_BYTES = bytearray(b'1CAFE1')
+FLAG_BYTES = bytearray(b'CAFE')
 
 EGRESS_PARENT = 0xFFFFFFF3
-SKB_BUFFER_PADDING = 8
+SKB_BUFFER_PADDING = 4
 ETHERNET_HEADER_BYTES = 6 + 6 + 2
 IP_HEADER_BYTES = 4 + 4 + 4
 UDP_HEADER_BYTES = 4 + 4
@@ -32,6 +36,7 @@ def print_skb_event(cpu, data, size):
             ("dport", ct.c_uint16),
 
             ("length", ct.c_uint16),
+            ("marker", ct.c_uint32),
             ("raw", ct.c_ubyte * size),
         ]
 
@@ -43,21 +48,22 @@ def print_skb_event(cpu, data, size):
     dst = socket.inet_ntoa(bytes_dst)
 
     body_bytearray = bytearray(skb_event.raw[SKB_BUFFER_PADDING + ETHERNET_HEADER_BYTES + IP_HEADER_BYTES + UDP_HEADER_BYTES:][:skb_event.length])
+    print(body_bytearray)
+    print(bytearray(skb_event.marker))
 
     print("%-32s %-16s %-32s %-16s %d" % (src, skb_event.sport, dst, skb_event.dport, len(skb_event.raw)))
-    print(body_bytearray.decode('utf8'))
 
     hash_bytearray = bytearray(hashlib.sha256(body_bytearray).digest())
     print(hash_bytearray)
 
-    body_and_hash = body_bytearray.copy()
-    body_and_hash.extend(FLAG_BYTES)
+    body_and_hash = bytearray(FLAG_BYTES)
     body_and_hash.extend(hash_bytearray)
     body_and_hash.extend(FLAG_BYTES)
+    body_and_hash.extend(body_bytearray)
 
     print(body_and_hash)
-
-    # TODO: use scapy to send raw package :)
+    print(skb_event.marker)
+    send(IP(dst=dst) / UDP(dport=skb_event.dport, sport=skb_event.sport) / Raw(body_and_hash))
 
 
 ipr = pyroute2.IPRoute()
