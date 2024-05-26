@@ -12,6 +12,8 @@ from scapy.all import *
 from pyroute2 import NetlinkError
 from scapy.layers.inet import IP, UDP
 
+from conf import read_configuration
+
 FLAG_BYTES = bytearray(b'CAFE')
 
 EGRESS_PARENT = 0xFFFFFFF3
@@ -20,10 +22,9 @@ ETHERNET_HEADER_BYTES = 6 + 6 + 2
 IP_HEADER_BYTES = 4 + 4 + 4
 UDP_HEADER_BYTES = 4 + 4
 
-PORTS_TO_TRACK = [
-    5000,
-    8000,
-]
+config = read_configuration('config.ini')
+
+PORTS_TO_TRACK = config.sender_ports_to_duplicate
 
 
 def print_skb_event(cpu, data, size):
