@@ -4,9 +4,6 @@ from bcc import BPF
 import ctypes as ct
 import pyroute2
 
-import socket
-import struct
-
 from scapy.all import *
 
 from pyroute2 import NetlinkError
@@ -14,7 +11,7 @@ from scapy.layers.inet import IP, UDP
 
 from conf import read_configuration
 
-FLAG_BYTES = bytearray(b'CAFE')
+FLAG_BYTES = bytearray(b'\xca\xfe')
 
 EGRESS_PARENT = 0xFFFFFFF3
 SKB_BUFFER_PADDING = 4
@@ -37,7 +34,7 @@ def print_skb_event(cpu, data, size):
             ("dport", ct.c_uint16),
 
             ("length", ct.c_uint16),
-            ("marker", ct.c_uint32),
+            ("marker", ct.c_ubyte * 10),
             ("raw", ct.c_ubyte * size),
         ]
 
@@ -63,7 +60,6 @@ def print_skb_event(cpu, data, size):
     body_and_hash.extend(body_bytearray)
 
     print(body_and_hash)
-    print(skb_event.marker)
     send(IP(dst=dst) / UDP(dport=skb_event.dport, sport=skb_event.sport) / Raw(body_and_hash))
 
 
