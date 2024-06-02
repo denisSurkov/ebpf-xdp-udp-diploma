@@ -8,6 +8,11 @@
 
 #define DUPLICATION_MARKER 0xcafe
 
+struct processed_request_key {
+    char key[32];
+};
+
+BPF_HASH(processed_requests, struct processed_request_key, u8);
 
 struct udp_event {
     u32 saddr;
@@ -20,7 +25,12 @@ struct udp_event {
 };
 
 
+BPF_DEVMAP(tx_port, 1);
+
+BPF_PERCPU_ARRAY(rxcnt, long, 1);
+
 BPF_HASH(deduplicate_ports, u16, u8);
+
 
 int xdp_handle_ingress(struct xdp_md *ctx) {
     void *data_end = (void *) (long) ctx->data_end;
@@ -41,6 +51,8 @@ int xdp_handle_ingress(struct xdp_md *ctx) {
         return XDP_PASS;
     }
 
+    u32 offset = sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr);
+
     struct udp_event event = {};
     event.saddr = bpf_htonl(ip->saddr);
     event.daddr = bpf_htonl(ip->daddr);
@@ -55,7 +67,7 @@ int xdp_handle_ingress(struct xdp_md *ctx) {
     u16 marker;
     long ret = bpf_xdp_load_bytes(
             ctx,
-            sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr),
+            offset,
             &marker,
             sizeof(marker)
     );
@@ -65,9 +77,23 @@ int xdp_handle_ingress(struct xdp_md *ctx) {
     }
 
     marker = bpf_htons(marker);
-    if (marker == DUPLICATION_MARKER) {
-        return XDP_DROP;
+    if (marker != DUPLICATION_MARKER) {
+        return XDP_PASS;
     }
 
-    return XDP_PASS;
+    offset += sizeof(marker);
+    struct processed_request_key key = {};
+    bpf_trace_printk("before load xdp load bytes");
+    if (bpf_xdp_load_bytes(ctx, offset, &key, sizeof(key)) != 0) {
+        return XDP_PASS;
+    }
+    bpf_trace_printk("after load bytes fine");
+
+    if (processed_requests.lookup(&key) == NULL) {
+        u8 v = 1;
+        processed_requests.insert(&key, &v);
+        return XDP_PASS;
+    }
+
+    return XDP_DROP;
 }

@@ -1,7 +1,4 @@
 from bcc import BPF
-import pyroute2
-import time
-import sys
 import ctypes as ct
 
 flags = 0
