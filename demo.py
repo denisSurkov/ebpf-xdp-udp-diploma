@@ -34,7 +34,6 @@ def print_skb_event(cpu, data, size):
             ("dport", ct.c_uint16),
 
             ("length", ct.c_uint16),
-            ("marker", ct.c_ubyte * 10),
             ("raw", ct.c_ubyte * size),
         ]
 
@@ -46,27 +45,24 @@ def print_skb_event(cpu, data, size):
     dst = socket.inet_ntoa(bytes_dst)
 
     body_bytearray = bytearray(skb_event.raw[SKB_BUFFER_PADDING + ETHERNET_HEADER_BYTES + IP_HEADER_BYTES + UDP_HEADER_BYTES:][:skb_event.length])
-    print(body_bytearray)
-    print(bytearray(skb_event.marker))
-
     print("%-32s %-16s %-32s %-16s %d" % (src, skb_event.sport, dst, skb_event.dport, len(skb_event.raw)))
 
     hash_bytearray = bytearray(hashlib.sha256(body_bytearray).digest())
-    print(hash_bytearray)
 
     body_and_hash = bytearray(FLAG_BYTES)
     body_and_hash.extend(hash_bytearray)
     body_and_hash.extend(FLAG_BYTES)
     body_and_hash.extend(body_bytearray)
 
-    print(body_and_hash)
-    send(IP(dst=dst) / UDP(dport=skb_event.dport, sport=skb_event.sport) / Raw(body_and_hash))
+    if config.sender_interface == 'lo':
+        conf.L3socket = L3RawSocket
+    send(IP(dst=dst) / UDP(dport=skb_event.dport, sport=skb_event.sport) / Raw(body_and_hash), iface=config.sender_interface)
 
 
 ipr = pyroute2.IPRoute()
 b = BPF(src_file="ebpf/egress.c")
 fn = b.load_func("handle_egress", BPF.SCHED_CLS)
-ethernet = ipr.link_lookup(ifname="eno1")[0]
+ethernet = ipr.link_lookup(ifname=config.sender_interface)[0]
 
 try:
     ipr.tc(

@@ -6,6 +6,8 @@
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 
+#define DUPLICATION_MARKER 0xcafe
+
 BPF_PERF_OUTPUT(skb_events);
 
 BPF_HASH(tracking_ports, u16, u8);
@@ -18,7 +20,6 @@ struct udp_event {
     u16 dport;
 
     u16 length;
-    char marker[10];
 };
 
 
@@ -51,28 +52,21 @@ int handle_egress(struct __sk_buff *skb) {
         return TC_ACT_OK;
     }
 
-    u16 marker1;
+    u16 marker;
     int ret = bpf_skb_load_bytes(
             skb,
             sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr),
-            &marker1,
-            sizeof(marker1)
+            &marker,
+            sizeof(marker)
     );
     if (ret != 0) {
         return TC_ACT_OK;
     }
 
-    marker1 = (marker1>>8) | (marker1<<8);
-    if (marker1 == 0xcafe) {
+    marker = bpf_htons(marker);
+    if (marker == DUPLICATION_MARKER) {
         return TC_ACT_OK;
     }
-
-    bpf_skb_load_bytes(
-            skb,
-            sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr),
-            &event.marker,
-            sizeof(event.marker)
-    );
 
     skb_events.perf_submit_skb(skb, skb->len, &event, sizeof(event));
     return TC_ACT_SHOT;
