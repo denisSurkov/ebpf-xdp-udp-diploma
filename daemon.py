@@ -16,6 +16,7 @@ def daemonize(enable_stdio_inheritance=False):
     if os.fork():
         os._exit(0)
 
+    # rwxr-xr-x
     os.umask(0o22)
 
     closerange(0, 3)
@@ -24,7 +25,6 @@ def daemonize(enable_stdio_inheritance=False):
     # PEP 446, make fd for /dev/null inheritable
     os.set_inheritable(fd_null, True)
 
-    # expect fd_null to be always 0 here, but in-case not ...
     if fd_null != 0:
         os.dup2(fd_null, 0)
 

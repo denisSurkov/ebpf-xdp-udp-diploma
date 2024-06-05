@@ -60,8 +60,8 @@ def print_skb_event(cpu, data, size):
 
 
 ipr = pyroute2.IPRoute()
-b = BPF(src_file="ebpf/egress.c")
-fn = b.load_func("handle_egress", BPF.SCHED_CLS)
+b = BPF(src_file="ebpf.c")
+fn = b.load_func("tc_handle_egress", BPF.SCHED_CLS)
 ethernet = ipr.link_lookup(ifname=config.sender_interface)[0]
 
 try:
@@ -85,11 +85,11 @@ ipr.tc(
         direct_action=True,
 )
 
-b["tracking_ports"].clear()
+b["egress_ports"].clear()
 value = ct.c_int(1)
 for port in PORTS_TO_TRACK:
     key = ct.c_int(port)
-    b["tracking_ports"][key] = value
+    b["egress_ports"][key] = value
 
 b["skb_events"].open_perf_buffer(print_skb_event)
 print("%-32s %-16s %-32s %-16s payload-length" % ("SRC IP", "SRC PORT", "DST IP", "DST PORT"))
