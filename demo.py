@@ -1,8 +1,10 @@
 import hashlib
+from _socket import gethostbyaddr
 
 from bcc import BPF
 import ctypes as ct
 import pyroute2
+gethostbyaddr
 
 from scapy.all import *
 
@@ -14,10 +16,9 @@ from conf import read_configuration
 FLAG_BYTES = bytearray(b'\xca\xfe')
 
 EGRESS_PARENT = 0xFFFFFFF3
-SKB_BUFFER_PADDING = 4
-ETHERNET_HEADER_BYTES = 6 + 6 + 2
-IP_HEADER_BYTES = 4 + 4 + 4
-UDP_HEADER_BYTES = 4 + 4
+ETHERNET_HEADER_BYTES = 14
+IP_HEADER_BYTES = 20
+UDP_HEADER_BYTES = 8
 
 config = read_configuration('config.ini')
 
@@ -44,15 +45,15 @@ def print_skb_event(cpu, data, size):
     src = socket.inet_ntoa(bytes_src)
     dst = socket.inet_ntoa(bytes_dst)
 
-    body_bytearray = bytearray(skb_event.raw[SKB_BUFFER_PADDING + ETHERNET_HEADER_BYTES + IP_HEADER_BYTES + UDP_HEADER_BYTES:][:skb_event.length])
+    payload_length = skb_event.length - UDP_HEADER_BYTES
+    body_bytearray = bytearray(skb_event.raw[ETHERNET_HEADER_BYTES + IP_HEADER_BYTES + UDP_HEADER_BYTES:][:payload_length])
     print("%-32s %-16s %-32s %-16s %d" % (src, skb_event.sport, dst, skb_event.dport, len(skb_event.raw)))
 
     hash_bytearray = bytearray(hashlib.sha256(body_bytearray).digest())
-
-    body_and_hash = bytearray(FLAG_BYTES)
+    body_and_hash = bytearray(body_bytearray)
+    body_and_hash.extend(FLAG_BYTES)
     body_and_hash.extend(hash_bytearray)
     body_and_hash.extend(FLAG_BYTES)
-    body_and_hash.extend(body_bytearray)
 
     if config.sender_interface == 'lo':
         conf.L3socket = L3RawSocket

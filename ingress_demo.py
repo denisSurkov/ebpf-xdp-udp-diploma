@@ -5,7 +5,7 @@ flags = 0
 
 in_if = 'lo'
 
-bpf_program = BPF(src_file="ebpf/ingress.c", cflags=["-w"])
+bpf_program = BPF(src_file="ingress_ebpf.c", cflags=["-w"])
 
 in_fn = bpf_program.load_func("xdp_handle_ingress", BPF.XDP)
 
@@ -20,6 +20,6 @@ for port in [5555, 8000]:
 
 try:
     while 1:
-        ...
+        bpf_program.trace_print()
 finally:
     bpf_program.remove_xdp(in_if, flags)

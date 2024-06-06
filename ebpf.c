@@ -29,10 +29,11 @@ BPF_PERF_OUTPUT(skb_events);
 BPF_HASH(processed_requests, struct processed_request_key, u8);
 
 BPF_HASH(ingress_ports, u16, u8);
+
 BPF_HASH(egress_ports, u16, u8);
 
 
-int check_is_udp_packet(void *data, void *data_end) {
+static int check_is_udp_packet(void *data, void *data_end) {
     struct ethhdr *eth = data;
     struct iphdr *ip = (data + sizeof(struct ethhdr));
 
@@ -73,10 +74,15 @@ int tc_handle_egress(struct __sk_buff *skb) {
         return TC_ACT_OK;
     }
 
+    u16 udp_body_length = bpf_ntohs(udp->len) - 8;
+    if (2 + 32 + 2 > udp_body_length) {
+        goto shot;
+    }
+
     u16 marker;
     int ret = bpf_skb_load_bytes(
             skb,
-            sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr),
+            sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr) + udp_body_length - 2,
             &marker,
             sizeof(marker)
     );
@@ -89,6 +95,8 @@ int tc_handle_egress(struct __sk_buff *skb) {
         return TC_ACT_OK;
     }
 
+
+shot:
     skb_events.perf_submit_skb(skb, skb->len, &event, sizeof(event));
     return TC_ACT_SHOT;
 }
@@ -100,9 +108,9 @@ int xdp_handle_ingress(struct xdp_md *ctx) {
     struct iphdr *ip = (data + sizeof(struct ethhdr));
     struct udphdr *udp = ((void *) ip + sizeof(struct iphdr));
 
-    if (check_is_udp_packet(data, data_end) == 0) {
-        return XDP_PASS;
-    }
+//    if (check_is_udp_packet(data, data_end) == 0) {
+//        return XDP_PASS;
+//    }
 
     u32 offset = sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr);
 
@@ -143,6 +151,18 @@ int xdp_handle_ingress(struct xdp_md *ctx) {
     if (processed_requests.lookup(&key) == NULL) {
         u8 v = cpu_clock(0);
         processed_requests.insert(&key, &v);
+
+		u32 real_length = udp->len - (sizeof(marker) + sizeof(char[32]) + sizeof(marker));
+		for (int i = 0; i < 64; ++i) {
+			if (i * 1024 > real_length) break;
+			memcpy(
+				data + 8,
+				ctx + sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr) + i * 1024,
+				1024
+			);
+		}
+
+
         return XDP_PASS;
     }
 

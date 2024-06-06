@@ -33,11 +33,13 @@ BPF_HASH(deduplicate_ports, u16, u8);
 
 
 int xdp_handle_ingress(struct xdp_md *ctx) {
-    void *data_end = (void *) (long) ctx->data_end;
     void *data = (void *) (long) ctx->data;
+    void *data_end = (void *) (long) ctx->data_end;
     struct ethhdr *eth = data;
     struct iphdr *ip = (data + sizeof(struct ethhdr));
     struct udphdr *udp = ((void *) ip + sizeof(struct iphdr));
+    char *body = ((void *) udp + sizeof(struct udphdr));
+
 
     if (data + sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr) > data_end) {
         return XDP_PASS;
@@ -64,10 +66,16 @@ int xdp_handle_ingress(struct xdp_md *ctx) {
         return XDP_PASS;
     }
 
+    u16 udp_body_length = bpf_ntohs(udp->len) - 8;
+    if (2 + 32 + 2 > udp_body_length) {
+        // точно нет хэша + концевиков
+        return XDP_PASS;
+    }
+
     u16 marker;
     long ret = bpf_xdp_load_bytes(
             ctx,
-            offset,
+            sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr) + udp_body_length - 2,
             &marker,
             sizeof(marker)
     );
@@ -81,10 +89,9 @@ int xdp_handle_ingress(struct xdp_md *ctx) {
         return XDP_PASS;
     }
 
-    offset += sizeof(marker);
     struct processed_request_key key = {};
     bpf_trace_printk("before load xdp load bytes");
-    if (bpf_xdp_load_bytes(ctx, offset, &key, sizeof(key)) != 0) {
+    if (bpf_xdp_load_bytes(ctx, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr) + udp_body_length - 2 - 32, &key, sizeof(key)) != 0) {
         return XDP_PASS;
     }
     bpf_trace_printk("after load bytes fine");
@@ -92,6 +99,14 @@ int xdp_handle_ingress(struct xdp_md *ctx) {
     if (processed_requests.lookup(&key) == NULL) {
         u8 v = 1;
         processed_requests.insert(&key, &v);
+        bpf_trace_printk("%lu", (unsigned long)data_end - (unsigned long)body);
+
+        udp->len = bpf_htons(bpf_htons(udp->len) - (2 + 32 + 2));
+        ip->tot_len = bpf_htons(bpf_htons(ip->tot_len) - (2 + 32 + 2));
+        bpf_xdp_adjust_tail(ctx, -(2 + 32 + 2));
+
+        bpf_trace_printk("hi from inside");
+
         return XDP_PASS;
     }
 
