@@ -19,6 +19,7 @@ EGRESS_PARENT = 0xFFFFFFF3
 ETHERNET_HEADER_BYTES = 14
 IP_HEADER_BYTES = 20
 UDP_HEADER_BYTES = 8
+count = 0
 
 config = read_configuration('config.ini')
 
@@ -53,6 +54,7 @@ def print_skb_event(cpu, data, size):
     body_and_hash = bytearray(body_bytearray)
     body_and_hash.extend(FLAG_BYTES)
     body_and_hash.extend(hash_bytearray)
+    body_and_hash.extend(count.to_bytes(4, byteorder='big'))
     body_and_hash.extend(FLAG_BYTES)
 
     if config.sender_interface == 'lo':

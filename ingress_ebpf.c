@@ -9,7 +9,7 @@
 #define DUPLICATION_MARKER 0xcafe
 
 struct processed_request_key {
-    char key[32];
+    char key[32 + 4];
 };
 
 BPF_HASH(processed_requests, struct processed_request_key, u8);
@@ -67,7 +67,7 @@ int xdp_handle_ingress(struct xdp_md *ctx) {
     }
 
     u16 udp_body_length = bpf_ntohs(udp->len) - 8;
-    if (2 + 32 + 2 > udp_body_length) {
+    if (2 + 32 + 2 + 4> udp_body_length) {
         // точно нет хэша + концевиков
         return XDP_PASS;
     }
@@ -91,23 +91,26 @@ int xdp_handle_ingress(struct xdp_md *ctx) {
 
     struct processed_request_key key = {};
     bpf_trace_printk("before load xdp load bytes");
-    if (bpf_xdp_load_bytes(ctx, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr) + udp_body_length - 2 - 32, &key, sizeof(key)) != 0) {
+    if (bpf_xdp_load_bytes(ctx, sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct udphdr) + udp_body_length - 2 - 32 - 4, &key, sizeof(key)) != 0) {
         return XDP_PASS;
     }
     bpf_trace_printk("after load bytes fine");
 
     if (processed_requests.lookup(&key) == NULL) {
-        u8 v = 1;
-        processed_requests.insert(&key, &v);
-        bpf_trace_printk("%lu", (unsigned long)data_end - (unsigned long)body);
-
-        udp->len = bpf_htons(bpf_htons(udp->len) - (2 + 32 + 2));
-        ip->tot_len = bpf_htons(bpf_htons(ip->tot_len) - (2 + 32 + 2));
-        bpf_xdp_adjust_tail(ctx, -(2 + 32 + 2));
-
-        bpf_trace_printk("hi from inside");
-
-        return XDP_PASS;
+    	return XDP_PASS;
+//        u8 v = 1;
+//        processed_requests.insert(&key, &v);
+//        bpf_trace_printk("%lu", (unsigned long)data_end - (unsigned long)body);
+//
+//        udp->len = bpf_htons(bpf_htons(udp->len) - (2 + 32 + 4 + 2));
+//        ip->tot_len = bpf_htons(bpf_htons(ip->tot_len) - (2 + 32 + 4 + 2));
+//        bpf_xdp_adjust_tail(ctx, -(2 + 32 + 4 + 2));
+//
+//         todo: checksum??
+//
+//        bpf_trace_printk("hi from inside");
+//
+//        return XDP_PASS;
     }
 
     return XDP_DROP;

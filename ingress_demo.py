@@ -13,7 +13,7 @@ bpf_program.attach_xdp(in_if, in_fn, flags)
 
 bpf_program["deduplicate_ports"].clear()
 value = ct.c_int(1)
-for port in [5555, 8000]:
+for port in [1223]:
     key = ct.c_int(port)
     bpf_program["deduplicate_ports"][key] = value
 
