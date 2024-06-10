@@ -1,8 +1,11 @@
 import configparser
+import subprocess
 from typing import NamedTuple
 
 
 class Configuration(NamedTuple):
+    config_path: str
+
     daemon_log_level: str
 
     receiver_interface: str
@@ -29,6 +32,7 @@ def read_configuration(path_to_read: str) -> Configuration:
     sender_ports_to_duplicate = list(map(int, config['SENDER SETTINGS']['duplicate_src_ports'].split(', ')))
 
     CONFIGURATION = Configuration(
+            path_to_read,
             daemon_log_level,
             receiver_interface,
             receiver_ports_to_duplicate,
@@ -37,3 +41,7 @@ def read_configuration(path_to_read: str) -> Configuration:
     )
 
     return CONFIGURATION
+
+
+def run_config_reload():
+    subprocess.call(["pkill", '-USR1', "-f", "'.*ebpf_duplication.*'"])

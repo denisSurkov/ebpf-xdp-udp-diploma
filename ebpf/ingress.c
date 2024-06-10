@@ -97,20 +97,15 @@ int xdp_handle_ingress(struct xdp_md *ctx) {
     bpf_trace_printk("after load bytes fine");
 
     if (processed_requests.lookup(&key) == NULL) {
-    	return XDP_PASS;
-//        u8 v = 1;
-//        processed_requests.insert(&key, &v);
-//        bpf_trace_printk("%lu", (unsigned long)data_end - (unsigned long)body);
-//
-//        udp->len = bpf_htons(bpf_htons(udp->len) - (2 + 32 + 4 + 2));
-//        ip->tot_len = bpf_htons(bpf_htons(ip->tot_len) - (2 + 32 + 4 + 2));
-//        bpf_xdp_adjust_tail(ctx, -(2 + 32 + 4 + 2));
-//
-//         todo: checksum??
-//
-//        bpf_trace_printk("hi from inside");
-//
-//        return XDP_PASS;
+        u8 v = 1;
+        processed_requests.insert(&key, &v);
+        bpf_trace_printk("%lu", (unsigned long)data_end - (unsigned long)body);
+
+        udp->len = bpf_htons(bpf_htons(udp->len) - (2 + 32 + 4 + 2));
+        ip->tot_len = bpf_htons(bpf_htons(ip->tot_len) - (2 + 32 + 4 + 2));
+        bpf_xdp_adjust_tail(ctx, -(2 + 32 + 4 + 2));
+
+        return XDP_PASS;
     }
 
     return XDP_DROP;

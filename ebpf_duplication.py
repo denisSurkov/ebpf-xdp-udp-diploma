@@ -1,5 +1,9 @@
 from argparse import ArgumentParser
 
+from conf import read_configuration, run_config_reload
+from egress_handler import run_egress_handler
+from ingress_handler import run_ingress_handler
+
 
 def get_parser() -> 'ArgumentParser':
     parser = ArgumentParser(description='eBPF udp packets duplication and deduplication')
@@ -13,4 +17,12 @@ def get_parser() -> 'ArgumentParser':
 if __name__ == '__main__':
     parser = get_parser()
     args = parser.parse_args()
-    print(args)
+
+    config = read_configuration(args.config)
+
+    if args.mode == 'ingress':
+        run_ingress_handler(config)
+    elif args.mode == 'egress':
+        run_egress_handler(config)
+    elif args.mode == 'config-reload':
+        run_config_reload()
