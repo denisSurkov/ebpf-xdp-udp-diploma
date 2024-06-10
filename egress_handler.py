@@ -128,7 +128,7 @@ def process_packet(cpu, data, size):
     body_and_hash.extend(count.to_bytes(4, byteorder='big'))
     body_and_hash.extend(FLAG_BYTES)
 
-    _enqueue_packet(IP(dst=dst) / UDP(dport=skb_event.dport, sport=skb_event.sport) / Raw(body_and_hash))
+    _enqueue_packet((dst, skb_event.dport, skb_event.sport, body_bytearray, hash_bytearray))
 
 
 def _enqueue_packet(packet_to_add):
@@ -145,6 +145,8 @@ def _start_processing_thread(config):
 
 
 def _process_hashed_packets(config):
+    global count
+
     if config.sender_interface == 'lo':
         conf.L3socket = L3RawSocket
 
@@ -159,4 +161,14 @@ def _process_hashed_packets(config):
         packet_to_process = _packets_to_process.pop()
         _lock.release()
 
-        send(packet_to_process, iface=config.sender_interface)
+        dst, dport, sport, body_bytes, hash_bytes = packet_to_process
+
+        body_and_hash = bytearray(body_bytes)
+        body_and_hash.extend(FLAG_BYTES)
+        body_and_hash.extend(hash_bytes)
+        body_and_hash.extend(count.to_bytes(4, byteorder='big'))
+        body_and_hash.extend(FLAG_BYTES)
+
+        count += 1
+
+        send(IP(dst=dst) / UDP(dport=dport, sport=sport) / Raw(body_and_hash), iface=config.sender_interface)
